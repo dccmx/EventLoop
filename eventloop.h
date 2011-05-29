@@ -1,54 +1,82 @@
-#ifndef _EVENT_H_
-#define _EVENT_H_
+#ifndef EVENT_LOOP_H_
+#define EVENT_LOOP_H_
 
-#include "util.h"
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <unistd.h>
+#include <string.h>
+#include <time.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <sys/types.h>
+#include <sys/epoll.h>
+#include <sys/socket.h>
+
+namespace eventloop {
 
 class Event {
-  public:
-    enum Type{
-      READ = EPOLLIN,
-      WRITE = EPOLLOUT,
-      ERROR = EPOLLHUP | EPOLLERR | EPOLLRDHUP,
-    };
-
-  public:
-    Event(Type events) {
-      events_ = events;
-    }
-
-  public:
-    virtual void Process(Type events);
-
-  private:
-    int fd_;
-    Type events_;
+ public:
+  virtual void Process(uint32_t events) = 0;
 };
 
-class EventEngine {
-  public:
-    static EventEngine *Instance();
+class FileEvent: public Event {
+ public:
+  enum Type{
+    READ = EPOLLIN,
+    WRITE = EPOLLOUT,
+    ERROR = EPOLLHUP | EPOLLERR | EPOLLRDHUP,
+  };
 
-  public:
-    int Add(Event *e);
-    int Delete(Event *e);
-    int Modify(Event *e, Event::Type events);
+ public:
+  explicit FileEvent() {
+  }
 
-    int ProcessEvent(int timeout);
-    void Run();
+  explicit FileEvent(Type events) {
+    events_ = events;
+  }
 
-  protected:
-    EventEngine() {
-      nev = 0;
-      evs = NULL;
-      epfd = epoll_create(256);
-    }
+  int GetFile() {
+    return fd_;
+  }
 
-  private:
-    static EventEngine *instance_;
+  int GetEvents() {
+    return events_;
+  }
 
-    int epfd_;
-    int nev = 0;
-    epoll_event *evs_ = NULL;
+ public:
+  virtual void Process(uint32_t events) = 0;
+
+ private:
+  int fd_;
+  Type events_;
 };
 
-#endif /* _EVENT_H_ */
+class TimerEvent: public Event {
+};
+
+class TimerManager {
+};
+
+class EvengLoop {
+ public:
+  EvengLoop() {
+    epfd_ = epoll_create(256);
+  }
+
+ public:
+  int AddFileEvent(FileEvent *e);
+  int DeleteFileEvent(FileEvent *e);
+  int ModifyFileEvent(FileEvent *e, uint32_t events);
+
+  int ProcessEvents(int timeout);
+  void Loop();
+
+ private:
+  int epfd_;
+};
+
+}
+
+#endif // EVENT_LOOP_H_
+

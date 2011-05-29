@@ -1,62 +1,54 @@
-#include "event.h"
+#include "eventloop.h"
+#include "util.h"
 
-EventEngine *EventEngine::instance_ = NULL;
+namespace eventloop {
 
-EventEngine *EventEngine::Instance() {
-  if (instance_ == NULL) {
-    instance_ = new EventEngine();
-  }
-  return instance_;
-}
-
-int EventEngine::ProcessEvent(int timeout) {
+int EvengLoop::ProcessEvents(int timeout) {
   int i, n;
-  n = epoll_wait(epfd, evs, nev, timeout);
+  epoll_event evs[256];
+  n = epoll_wait(epfd_, evs, 256, timeout);
   for(i = 0; i < n; i++) {
-    Event *e = evs[i].data.ptr;
+    Event *e = (Event *)evs[i].data.ptr;
     e->Process(evs[i].events);
   }
   return n;
 }
 
-void EventEngine::Run() {
+void EvengLoop::Loop() {
   while (true) {
-    ProcessEvent(300);
+    ProcessEvents(300);
   }
 }
 
-static int sockbufsize = 32*1024;
-
-int EventEngine::Add(Event *e) {
+int EvengLoop::AddFileEvent(FileEvent *e) {
   struct epoll_event ev;
+  int sockbufsize = 32*1024;
 
-  ev.events = e->events;
-  ev.data.fd = e->fd;
+  ev.events = e->GetEvents();
+  ev.data.fd = e->GetFile();
   ev.data.ptr = e;
 
-  setnonblock(e->fd);
-  setsockopt(e->fd, SOL_SOCKET, SO_RCVBUF, &sockbufsize, sizeof(sockbufsize));
-  setsockopt(e->fd, SOL_SOCKET, SO_SNDBUF, &sockbufsize, sizeof(sockbufsize));
+  setnonblock(e->GetFile());
+  setsockopt(e->GetFile(), SOL_SOCKET, SO_RCVBUF, &sockbufsize, sizeof(sockbufsize));
+  setsockopt(e->GetFile(), SOL_SOCKET, SO_SNDBUF, &sockbufsize, sizeof(sockbufsize));
 
-  epoll_ctl(epfd_, EPOLL_CTL_ADD, e->fd, &ev);
-
-  nev++;
-
-  evs = realloc(evs, nev * sizeof(struct epoll_event));
+  epoll_ctl(epfd_, EPOLL_CTL_ADD, e->GetFile(), &ev);
 
   return 0;
 }
 
-int EventEngine::Modify(struct event *e, uint32_t events, event_handler handler, void *ctx) {
+int EvengLoop::ModifyFileEvent(FileEvent *e, uint32_t events) {
   struct epoll_event ev;
 
-  e->handler = handler;
-  e->ctx = ctx;
-
   ev.events = events;
-  ev.data.fd = e->fd;
+  ev.data.fd = e->GetFile();
   ev.data.ptr = e;
 
-  return epoll_ctl(epfd, EPOLL_CTL_MOD, e->fd, &ev);
+  return epoll_ctl(epfd_, EPOLL_CTL_MOD, e->GetFile(), &ev);
 }
 
+int EvengLoop::DeleteFileEvent(FileEvent *e) {
+  return 0;
+}
+
+}

@@ -13,60 +13,6 @@ static const char *log_str[] = {
   "DEBUG"
 };
 
-static void rwbuffer_init(struct rwbuffer *buf) {
-  buf->data_size = buf->r = buf->w = 0;
-  buf->flip = 0;
-  buf->free_size = RW_BUF_SIZE;
-}
-static void rwbuffer_deinit(struct rwbuffer *buf) {
-}
-IMPLEMENT_POOL(rwbuffer, 1000);
-
-void rwbuffer_update_size(struct rwbuffer *buf) {
-  if (buf->r < buf->w) {
-    buf->data_size = buf->w - buf->r;
-    buf->free_size = RW_BUF_SIZE - buf->w;
-  } else if (buf->r == buf->w) {
-    if (buf->flip) {
-      buf->data_size = RW_BUF_SIZE - buf->w;
-      buf->free_size = 0;
-    } else {
-      buf->data_size = 0;
-      buf->free_size = RW_BUF_SIZE - buf->r;
-    }
-  } else {
-    buf->data_size = RW_BUF_SIZE - buf->r;
-    buf->free_size = buf->r - buf->w;
-  }
-}
-
-char *rwbuffer_read_buf(struct rwbuffer *buf) {
-  return &buf->data[buf->r];
-}
-
-char *rwbuffer_write_buf(struct rwbuffer *buf) {
-  return &buf->data[buf->w];
-}
-
-void rwbuffer_commit_read(struct rwbuffer *buf, int size) {
-  buf->r += size;
-  if (buf->r == RW_BUF_SIZE) {
-    buf->r = 0;
-    buf->flip = 1 - buf->flip;
-  }
-  rwbuffer_update_size(buf);
-}
-
-void rwbuffer_commit_write(struct rwbuffer *buf, int size) {
-  buf->w += size;
-  if (buf->w == RW_BUF_SIZE) {
-    buf->w = 0;
-    buf->flip = 1 - buf->flip;
-  }
-  rwbuffer_update_size(buf);
-}
-
-
 void update_time() {
   time_t t = time(NULL);
 

@@ -4,11 +4,11 @@
 # Author: dccmx <dccmx@dccmx.com>
 #
 
-PROGNAME   = nezhad
-VERSION    = 0.2.1
+PROGNAME   = echoserver
+VERSION    = 0.1
 
-OBJFILES   = event.cc util.cc
-INCFILES   = event.h util.h
+OBJFILES   = eventloop.cc util.cc
+INCFILES   = eventloop.h util.h
 
 CFLAGS_GEN = -Wall -g $(CFLAGS) -DVERSION=\"$(VERSION)\"
 CFLAGS_DBG = -ggdb $(CFLAGS_GEN)
