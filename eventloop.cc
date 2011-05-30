@@ -1,53 +1,153 @@
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <string.h>
+#include <errno.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+
 #include "eventloop.h"
-#include "util.h"
 
 namespace eventloop {
 
-int EvengLoop::ProcessEvents(int timeout) {
+int SetNonblocking(int fd) {
+  int opts;
+  if ((opts = fcntl(fd, F_GETFL)) != -1) {
+    opts = opts | O_NONBLOCK;
+    if(fcntl(fd, F_SETFL, opts) != -1) {
+      return 0;
+    }
+  }
+  return -1;
+}
+
+int ConnectTo(const char *host, short port) {
+  int fd;
+  struct sockaddr_in addr;
+
+  fd = socket(PF_INET, SOCK_STREAM, 0);
+  addr.sin_family = PF_INET;
+  addr.sin_port = htons(port);
+  if (host[0] == '\0' || strcmp(host, "localhost") == 0) {
+    inet_aton("127.0.0.1", &addr.sin_addr);
+  } else if (!strcmp(host, "any")) {
+    addr.sin_addr.s_addr = INADDR_ANY;
+  } else {
+    inet_aton(host, &addr.sin_addr);
+  }
+
+  SetNonblocking(fd);
+
+  if (connect(fd, (struct sockaddr*)&addr, sizeof(struct sockaddr_in)) == -1) {
+    if (errno != EINPROGRESS) {
+      return -1;
+    }
+  }
+
+  return fd;
+}
+
+int BindTo(const char *host, short port) {
+  int fd, on = 1;
+  struct sockaddr_in addr;
+
+  if ((fd = socket(PF_INET, SOCK_STREAM, 0)) == -1) {
+    return -1;
+  }
+
+  setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(int));
+
+  memset(&addr, 0, sizeof(struct sockaddr_in));
+  addr.sin_family = PF_INET;
+  addr.sin_port = htons(port);
+  if (host[0] == '\0' || strcmp(host, "localhost") == 0) {
+    inet_aton("127.0.0.1", &addr.sin_addr);
+  } else if (strcmp(host, "any") == 0) {
+    addr.sin_addr.s_addr = INADDR_ANY;
+  } else {
+    if (inet_aton(host, &addr.sin_addr) == 0) return -1;
+  }
+
+  if (bind(fd, (struct sockaddr*)&addr, sizeof(struct sockaddr_in)) == -1
+      || listen(fd, 10) == -1) {
+    return -1;
+  }
+
+  return fd;
+}
+
+int EventLoop::ProcessFileEvents(int timeout) {
   int i, n;
   epoll_event evs[256];
   n = epoll_wait(epfd_, evs, 256, timeout);
   for(i = 0; i < n; i++) {
     Event *e = (Event *)evs[i].data.ptr;
-    e->Process(evs[i].events);
+    uint32_t events = 0;
+    if (evs[i].events & EPOLLIN) events |= FileEvent::READ;
+    if (evs[i].events & EPOLLOUT) events |= FileEvent::WRITE;
+    if (evs[i].events & (EPOLLHUP | EPOLLERR | EPOLLRDHUP)) events |= FileEvent::ERROR;
+
+    e->Process(events);
   }
   return n;
 }
 
-void EvengLoop::Loop() {
+int EventLoop::ProcessEvents(int timeout) {
+  return ProcessFileEvents(timeout);
+}
+
+void EventLoop::Loop() {
   while (true) {
-    ProcessEvents(300);
+    ProcessEvents(1000);
   }
 }
 
-int EvengLoop::AddFileEvent(FileEvent *e) {
+int EventLoop::AddEvent(FileEvent *e) {
   struct epoll_event ev;
-  int sockbufsize = 32*1024;
 
-  ev.events = e->GetEvents();
+  uint32_t type = e->GetType();
+  ev.events = 0;
+  if (type | FileEvent::READ) ev.events |= EPOLLIN;
+  if (type | FileEvent::WRITE) ev.events |= EPOLLOUT;
+  if (type | FileEvent::ERROR) ev.events |= EPOLLHUP | EPOLLERR | EPOLLRDHUP;
   ev.data.fd = e->GetFile();
   ev.data.ptr = e;
 
-  setnonblock(e->GetFile());
-  setsockopt(e->GetFile(), SOL_SOCKET, SO_RCVBUF, &sockbufsize, sizeof(sockbufsize));
-  setsockopt(e->GetFile(), SOL_SOCKET, SO_SNDBUF, &sockbufsize, sizeof(sockbufsize));
+  SetNonblocking(e->GetFile());
 
-  epoll_ctl(epfd_, EPOLL_CTL_ADD, e->GetFile(), &ev);
-
-  return 0;
+  return epoll_ctl(epfd_, EPOLL_CTL_ADD, e->GetFile(), &ev);
 }
 
-int EvengLoop::ModifyFileEvent(FileEvent *e, uint32_t events) {
+int EventLoop::UpdateEvent(FileEvent *e) {
   struct epoll_event ev;
+  uint32_t type = e->GetType();
 
-  ev.events = events;
+  ev.events = 0;
+  if (type | FileEvent::READ) ev.events |= EPOLLIN;
+  if (type | FileEvent::WRITE) ev.events |= EPOLLOUT;
+  if (type | FileEvent::ERROR) ev.events |= EPOLLHUP | EPOLLERR | EPOLLRDHUP;
   ev.data.fd = e->GetFile();
   ev.data.ptr = e;
 
   return epoll_ctl(epfd_, EPOLL_CTL_MOD, e->GetFile(), &ev);
 }
 
-int EvengLoop::DeleteFileEvent(FileEvent *e) {
+int EventLoop::DeleteEvent(FileEvent *e) {
+  return 0;
+}
+
+int TimerManager::AddEvent(TimerEvent *e) {
+  return 0;
+}
+
+int TimerManager::DeleteEvent(TimerEvent *e) {
+  return 0;
+}
+
+int TimerManager::UpdateEvent(TimerEvent *e) {
   return 0;
 }
 

@@ -7,8 +7,8 @@
 PROGNAME   = echoserver
 VERSION    = 0.1
 
-OBJFILES   = eventloop.cc util.cc
-INCFILES   = eventloop.h util.h
+OBJFILES   = eventloop.cc
+INCFILES   = eventloop.h
 
 CFLAGS_GEN = -Wall -g $(CFLAGS) -DVERSION=\"$(VERSION)\"
 CFLAGS_DBG = -ggdb $(CFLAGS_GEN)
