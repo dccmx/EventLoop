@@ -12,6 +12,28 @@
 
 using namespace eventloop;
 
+EventLoop el;
+
+class ReadEvent: public FileEvent {
+ public:
+  void Process(uint32_t events) {
+    if (events & FileEvent::READ) {
+      char a;
+      if (read(this->GetFile(), &a, sizeof(char)) == 0) {
+        close(this->GetFile());
+        delete this;
+        return;
+      }
+      write(this->GetFile(), &a, sizeof(char));
+    }
+
+    if (events & FileEvent::ERROR) {
+      close(this->GetFile());
+      delete this;
+    }
+  }
+};
+
 class AcceptEvent: public FileEvent {
  public:
   void Process(uint32_t events) {
@@ -20,19 +42,20 @@ class AcceptEvent: public FileEvent {
       struct sockaddr_in addr;
 
       int fd = accept(this->GetFile(), (struct sockaddr*)&addr, &size);
-      printf("read\n");
+      ReadEvent *e = new ReadEvent();
+      e->SetFile(fd);
+      e->SetType(FileEvent::READ | FileEvent::ERROR);
+      el.AddEvent(e);
     }
 
     if (events & FileEvent::ERROR) {
       close(this->GetFile());
-      printf("close\n");
     }
   }
 };
 
 int main(int argc, char **argv) {
   int fd;
-  EventLoop el;
   AcceptEvent e;
 
   e.SetType(FileEvent::READ | FileEvent::ERROR);
@@ -49,6 +72,6 @@ int main(int argc, char **argv) {
 
   el.Loop();
 
-  exit(EXIT_SUCCESS);
+  return 0;
 }
 
