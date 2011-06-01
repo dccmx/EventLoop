@@ -8,8 +8,11 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <set>
 
 #include "eventloop.h"
+
+using std::set;
 
 namespace eventloop {
 
@@ -21,6 +24,9 @@ class TimerManager {
   int AddEvent(BaseTimerEvent *e);
   int DeleteEvent(BaseTimerEvent *e);
   int UpdateEvent(BaseTimerEvent *e);
+
+ private:
+  set<BaseTimerEvent*> timers_;
 };
 
 int SetNonblocking(int fd) {
@@ -81,12 +87,16 @@ int BindTo(const char *host, short port) {
     if (inet_aton(host, &addr.sin_addr) == 0) return -1;
   }
 
-  if (bind(fd, (struct sockaddr*)&addr, sizeof(struct sockaddr_in)) == -1
-      || listen(fd, 10) == -1) {
+  if (bind(fd, (struct sockaddr*)&addr, sizeof(struct sockaddr_in)) == -1 || listen(fd, 10) == -1) {
     return -1;
   }
 
   return fd;
+}
+
+EventLoop::EventLoop() {
+  epfd_ = epoll_create(256);
+  timermanager_ = new TimerManager();
 }
 
 int EventLoop::ProcessFileEvents(int timeout) {

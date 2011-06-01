@@ -79,9 +79,7 @@ class BaseTimerEvent: public BaseEvent {
 
 class EventLoop {
  public:
-  explicit EventLoop() {
-    epfd_ = epoll_create(256);
-  }
+  explicit EventLoop();
 
  public:
   int AddEvent(BaseFileEvent *e);

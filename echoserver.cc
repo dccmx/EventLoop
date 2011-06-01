@@ -62,6 +62,13 @@ class Timer : public BaseTimerEvent {
   }
 };
 
+class Cmp {
+ public:
+  int operator()(int a, int b) {
+    return a-b;
+  }
+};
+
 int main(int argc, char **argv) {
   int fd;
   AcceptEvent e;
