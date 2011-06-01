@@ -2,19 +2,20 @@
 #define EVENT_LOOP_H_
 
 #include <stdint.h>
+#include <time.h>
 #include <sys/epoll.h>
 
 namespace eventloop {
 
-class Event {
+class BaseEvent {
  public:
   static const uint32_t  NONE = 0;
   static const uint32_t  TIMEOUT = 1 << 0;
 
  public:
-  Event(uint32_t type = 0) { type_ = type; }
+  BaseEvent(uint32_t type = 0) { type_ = type; }
 
-  virtual ~Event() {};
+  virtual ~BaseEvent() {};
 
   virtual void Process(uint32_t type) = 0;
 
@@ -26,16 +27,16 @@ class Event {
   uint32_t type_;
 };
 
-class FileEvent: public Event {
+class BaseFileEvent: public BaseEvent {
  public:
   static const uint32_t  READ = 1 << 1;
   static const uint32_t  WRITE = 1 << 2;
   static const uint32_t  ERROR = 1 << 3;
 
  public:
-  explicit FileEvent(uint32_t type = Event::NONE) : Event(type) {}
+  explicit BaseFileEvent(uint32_t type = BaseEvent::NONE) : BaseEvent(type) {}
 
-  virtual ~FileEvent() {};
+  virtual ~BaseFileEvent() {};
 
  public:
   void SetFile(int fd) { fd_ = fd; }
@@ -48,33 +49,32 @@ class FileEvent: public Event {
   int fd_;
 };
 
-class SignalEvent: public Event {
+class BaseSignalEvent: public BaseEvent {
  public:
   static const uint32_t INT = 1 << 1;
   static const uint32_t PIPE = 1 << 2;
   static const uint32_t TERM = 1 << 3;
 
  public:
-  explicit SignalEvent(uint32_t type = Event::NONE) : Event(type) {}
+  explicit BaseSignalEvent(uint32_t type = BaseEvent::NONE) : BaseEvent(type) {}
 
-  virtual ~SignalEvent() {};
+  virtual ~BaseSignalEvent() {};
 };
 
-class TimerEvent: public Event {
+class BaseTimerEvent: public BaseEvent {
  public:
   static const uint32_t TIMER = 1 << 1;
 
  public:
-  explicit TimerEvent(uint32_t type = Event::NONE) : Event(type) {}
+  explicit BaseTimerEvent(uint32_t type = BaseEvent::NONE) : BaseEvent(type) {}
+  virtual ~BaseTimerEvent() {};
 
-  virtual ~TimerEvent() {};
-};
-
-class TimerManager {
  public:
-  int AddEvent(TimerEvent *e);
-  int DeleteEvent(TimerEvent *e);
-  int UpdateEvent(TimerEvent *e);
+  void SetTime(timeval tv) { time_ = tv; }
+  timeval GetTime() { return time_; }
+
+ private:
+  timeval time_;
 };
 
 class EventLoop {
@@ -84,13 +84,13 @@ class EventLoop {
   }
 
  public:
-  int AddEvent(FileEvent *e);
-  int DeleteEvent(FileEvent *e);
-  int UpdateEvent(FileEvent *e);
+  int AddEvent(BaseFileEvent *e);
+  int DeleteEvent(BaseFileEvent *e);
+  int UpdateEvent(BaseFileEvent *e);
 
-  int AddEvent(TimerEvent *e);
-  int DeleteEvent(TimerEvent *e);
-  int UpdateEvent(TimerEvent *e);
+  int AddEvent(BaseTimerEvent *e);
+  int DeleteEvent(BaseTimerEvent *e);
+  int UpdateEvent(BaseTimerEvent *e);
 
   int ProcessEvents(int timeout);
 
@@ -101,7 +101,7 @@ class EventLoop {
 
  private:
   int epfd_;
-  TimerManager timermanager_;
+  void *timermanager_;
 };
 
 int SetNonblocking(int fd);

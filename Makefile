@@ -7,12 +7,12 @@
 PROGNAME   = echoserver
 VERSION    = 0.1
 
-OBJFILES   = eventloop.cc
-INCFILES   = eventloop.h
+OBJFILES   = eventloop.cc rbtree.cc
+INCFILES   = eventloop.h rbtree.h
 
 CFLAGS_GEN = -Wall -g $(CFLAGS) -DVERSION=\"$(VERSION)\"
 CFLAGS_DBG = -ggdb $(CFLAGS_GEN)
-CFLAGS_OPT = -O3 -Wno-format $(CFLAGS_GEN)
+CFLAGS_OPT = -O3 -Wno-format -Wno-unused-result $(CFLAGS_GEN)
 
 LDFLAGS   += 
 LIBS      += 
@@ -20,7 +20,7 @@ LIBS      +=
 all: $(PROGNAME)
 
 $(PROGNAME): $(PROGNAME).cc $(OBJFILES) $(INCFILES)
-	$(CXX) $(LDFLAGS) $(PROGNAME).cc -o $(PROGNAME) $(CFLAGS_OPT) $(OBJFILES) $(LIBS)
+	$(CXX) $(LDFLAGS) -o $(PROGNAME) $(CFLAGS_OPT) $(LIBS) $^
 	@echo
 	@echo "Make Complete. See README for how to use."
 	@echo
@@ -28,7 +28,7 @@ $(PROGNAME): $(PROGNAME).cc $(OBJFILES) $(INCFILES)
 	@echo
 
 debug: $(PROGNAME).cc $(OBJFILES) $(INCFILES)
-	$(CXX) $(LDFLAGS) $(PROGNAME).cc -o $(PROGNAME) $(CFLAGS_DBG) $(OBJFILES) $(LIBS)
+	$(CXX) $(LDFLAGS) -o $(PROGNAME) $(CFLAGS_DBG) $(LIBS) $^
 
 clean:
 	rm -f $(PROGNAME) core core.[1-9][0-9]* memcheck.out callgrind.out.[1-9][0-9]* massif.out.[1-9][0-9]*

@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <time.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
@@ -14,10 +15,10 @@ using namespace eventloop;
 
 EventLoop el;
 
-class ReadEvent: public FileEvent {
+class ReadEvent : public BaseFileEvent {
  public:
   void Process(uint32_t events) {
-    if (events & FileEvent::READ) {
+    if (events & BaseFileEvent::READ) {
       char a;
       if (read(this->GetFile(), &a, sizeof(char)) == 0) {
         close(this->GetFile());
@@ -27,30 +28,37 @@ class ReadEvent: public FileEvent {
       write(this->GetFile(), &a, sizeof(char));
     }
 
-    if (events & FileEvent::ERROR) {
+    if (events & BaseFileEvent::ERROR) {
       close(this->GetFile());
       delete this;
     }
   }
 };
 
-class AcceptEvent: public FileEvent {
+class AcceptEvent: public BaseFileEvent {
  public:
   void Process(uint32_t events) {
-    if (events & FileEvent::READ) {
+    if (events & BaseFileEvent::READ) {
       uint32_t size = 0;
       struct sockaddr_in addr;
 
       int fd = accept(this->GetFile(), (struct sockaddr*)&addr, &size);
       ReadEvent *e = new ReadEvent();
       e->SetFile(fd);
-      e->SetType(FileEvent::READ | FileEvent::ERROR);
+      e->SetType(BaseFileEvent::READ | BaseFileEvent::ERROR);
       el.AddEvent(e);
     }
 
-    if (events & FileEvent::ERROR) {
+    if (events & BaseFileEvent::ERROR) {
       close(this->GetFile());
     }
+  }
+};
+
+class Timer : public BaseTimerEvent {
+ public:
+  void Process(uint32_t events) {
+    printf("%u\n", static_cast<uint32_t>(time(0)));
   }
 };
 
@@ -58,7 +66,7 @@ int main(int argc, char **argv) {
   int fd;
   AcceptEvent e;
 
-  e.SetType(FileEvent::READ | FileEvent::ERROR);
+  e.SetType(BaseFileEvent::READ | BaseFileEvent::ERROR);
 
   fd = BindTo("0.0.0.0", 12345);
   if (fd == -1) {

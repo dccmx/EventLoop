@@ -13,6 +13,16 @@
 
 namespace eventloop {
 
+class SignalManager {
+};
+
+class TimerManager {
+ public:
+  int AddEvent(BaseTimerEvent *e);
+  int DeleteEvent(BaseTimerEvent *e);
+  int UpdateEvent(BaseTimerEvent *e);
+};
+
 int SetNonblocking(int fd) {
   int opts;
   if ((opts = fcntl(fd, F_GETFL)) != -1) {
@@ -28,7 +38,7 @@ int ConnectTo(const char *host, short port) {
   int fd;
   struct sockaddr_in addr;
 
-  fd = socket(PF_INET, SOCK_STREAM, 0);
+  fd = socket(AF_INET, SOCK_STREAM, 0);
   addr.sin_family = PF_INET;
   addr.sin_port = htons(port);
   if (host[0] == '\0' || strcmp(host, "localhost") == 0) {
@@ -84,11 +94,11 @@ int EventLoop::ProcessFileEvents(int timeout) {
   epoll_event evs[256];
   n = epoll_wait(epfd_, evs, 256, timeout);
   for(i = 0; i < n; i++) {
-    Event *e = (Event *)evs[i].data.ptr;
+    BaseEvent *e = (BaseEvent *)evs[i].data.ptr;
     uint32_t events = 0;
-    if (evs[i].events & EPOLLIN) events |= FileEvent::READ;
-    if (evs[i].events & EPOLLOUT) events |= FileEvent::WRITE;
-    if (evs[i].events & (EPOLLHUP | EPOLLERR | EPOLLRDHUP)) events |= FileEvent::ERROR;
+    if (evs[i].events & EPOLLIN) events |= BaseFileEvent::READ;
+    if (evs[i].events & EPOLLOUT) events |= BaseFileEvent::WRITE;
+    if (evs[i].events & (EPOLLHUP | EPOLLERR | EPOLLRDHUP)) events |= BaseFileEvent::ERROR;
 
     e->Process(events);
   }
@@ -105,14 +115,14 @@ void EventLoop::Loop() {
   }
 }
 
-int EventLoop::AddEvent(FileEvent *e) {
+int EventLoop::AddEvent(BaseFileEvent *e) {
   struct epoll_event ev;
 
   uint32_t type = e->GetType();
   ev.events = 0;
-  if (type | FileEvent::READ) ev.events |= EPOLLIN;
-  if (type | FileEvent::WRITE) ev.events |= EPOLLOUT;
-  if (type | FileEvent::ERROR) ev.events |= EPOLLHUP | EPOLLERR | EPOLLRDHUP;
+  if (type | BaseFileEvent::READ) ev.events |= EPOLLIN;
+  if (type | BaseFileEvent::WRITE) ev.events |= EPOLLOUT;
+  if (type | BaseFileEvent::ERROR) ev.events |= EPOLLHUP | EPOLLERR | EPOLLRDHUP;
   ev.data.fd = e->GetFile();
   ev.data.ptr = e;
 
@@ -121,33 +131,33 @@ int EventLoop::AddEvent(FileEvent *e) {
   return epoll_ctl(epfd_, EPOLL_CTL_ADD, e->GetFile(), &ev);
 }
 
-int EventLoop::UpdateEvent(FileEvent *e) {
+int EventLoop::UpdateEvent(BaseFileEvent *e) {
   struct epoll_event ev;
   uint32_t type = e->GetType();
 
   ev.events = 0;
-  if (type | FileEvent::READ) ev.events |= EPOLLIN;
-  if (type | FileEvent::WRITE) ev.events |= EPOLLOUT;
-  if (type | FileEvent::ERROR) ev.events |= EPOLLHUP | EPOLLERR | EPOLLRDHUP;
+  if (type | BaseFileEvent::READ) ev.events |= EPOLLIN;
+  if (type | BaseFileEvent::WRITE) ev.events |= EPOLLOUT;
+  if (type | BaseFileEvent::ERROR) ev.events |= EPOLLHUP | EPOLLERR | EPOLLRDHUP;
   ev.data.fd = e->GetFile();
   ev.data.ptr = e;
 
   return epoll_ctl(epfd_, EPOLL_CTL_MOD, e->GetFile(), &ev);
 }
 
-int EventLoop::DeleteEvent(FileEvent *e) {
+int EventLoop::DeleteEvent(BaseFileEvent *e) {
   return 0;
 }
 
-int TimerManager::AddEvent(TimerEvent *e) {
+int TimerManager::AddEvent(BaseTimerEvent *e) {
   return 0;
 }
 
-int TimerManager::DeleteEvent(TimerEvent *e) {
+int TimerManager::DeleteEvent(BaseTimerEvent *e) {
   return 0;
 }
 
-int TimerManager::UpdateEvent(TimerEvent *e) {
+int TimerManager::UpdateEvent(BaseTimerEvent *e) {
   return 0;
 }
 
