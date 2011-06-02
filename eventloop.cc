@@ -118,7 +118,7 @@ int TimerManager::DeleteEvent(BaseTimerEvent *e) {
 }
 
 int TimerManager::UpdateEvent(BaseTimerEvent *e) {
-  if (timers_.erase(e) != 1) return 1;
+  timers_.erase(e);
   return !timers_.insert(e).second;
 }
 
@@ -140,8 +140,8 @@ int EventLoop::DoTimeout() {
     timeval tv = (*ite)->GetTime();
     if ((tv.tv_sec > now_.tv_sec) || (tv.tv_sec == now_.tv_sec && tv.tv_usec > now_.tv_usec)) break;
     n++;
-    (*ite)->Process(BaseTimerEvent::TIMER);
     timers.erase(ite);
+    (*ite)->Process(BaseTimerEvent::TIMER);
     ite = timers.begin();
   }
   return n;
@@ -149,15 +149,17 @@ int EventLoop::DoTimeout() {
 
 int EventLoop::ProcessEvents(int timeout) {
   int i, nt, n = GetFileEvents(timeout);
+
   gettimeofday(&now_, NULL);
+
   nt = DoTimeout();
+
   for(i = 0; i < n; i++) {
     BaseEvent *e = (BaseEvent *)evs_[i].data.ptr;
     uint32_t events = 0;
     if (evs_[i].events & EPOLLIN) events |= BaseFileEvent::READ;
     if (evs_[i].events & EPOLLOUT) events |= BaseFileEvent::WRITE;
     if (evs_[i].events & (EPOLLHUP | EPOLLERR | EPOLLRDHUP)) events |= BaseFileEvent::ERROR;
-
     e->Process(events);
   }
 

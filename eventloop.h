@@ -10,7 +10,8 @@ namespace eventloop {
 class BaseEvent {
  public:
   static const uint32_t  NONE = 0;
-  static const uint32_t  TIMEOUT = 1 << 0;
+  static const uint32_t  ONESHOT = 1 << 30;
+  static const uint32_t  TIMEOUT = 1 << 31;
 
  public:
   BaseEvent(uint32_t type = 0) { type_ = type; }
@@ -29,9 +30,9 @@ class BaseEvent {
 
 class BaseFileEvent: public BaseEvent {
  public:
-  static const uint32_t  READ = 1 << 1;
-  static const uint32_t  WRITE = 1 << 2;
-  static const uint32_t  ERROR = 1 << 3;
+  static const uint32_t  READ = 1 << 0;
+  static const uint32_t  WRITE = 1 << 1;
+  static const uint32_t  ERROR = 1 << 2;
 
  public:
   explicit BaseFileEvent(uint32_t type = BaseEvent::NONE) : BaseEvent(type) {}
@@ -51,9 +52,9 @@ class BaseFileEvent: public BaseEvent {
 
 class BaseSignalEvent: public BaseEvent {
  public:
-  static const uint32_t INT = 1 << 1;
-  static const uint32_t PIPE = 1 << 2;
-  static const uint32_t TERM = 1 << 3;
+  static const uint32_t INT = 1 << 0;
+  static const uint32_t PIPE = 1 << 1;
+  static const uint32_t TERM = 1 << 2;
 
  public:
   explicit BaseSignalEvent(uint32_t type = BaseEvent::NONE) : BaseEvent(type) {}
@@ -63,7 +64,7 @@ class BaseSignalEvent: public BaseEvent {
 
 class BaseTimerEvent: public BaseEvent {
  public:
-  static const uint32_t TIMER = 1 << 1;
+  static const uint32_t TIMER = 1 << 0;
 
  public:
   explicit BaseTimerEvent(uint32_t type = BaseEvent::NONE) : BaseEvent(type) {}
@@ -93,6 +94,8 @@ class EventLoop {
   int ProcessEvents(int timeout);
 
   void Loop();
+
+  timeval Now() const { return now_; }
 
  private:
   int GetFileEvents(int timeout);

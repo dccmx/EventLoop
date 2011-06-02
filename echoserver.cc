@@ -60,6 +60,10 @@ class Timer : public BaseTimerEvent {
  public:
   void Process(uint32_t events) {
     printf("timer:%u\n", static_cast<uint32_t>(time(0)));
+    timeval tv = el.Now();
+    tv.tv_sec += 1;
+    SetTime(tv);
+    el.UpdateEvent(this);
   }
 };
 
