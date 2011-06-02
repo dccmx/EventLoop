@@ -9,16 +9,40 @@
 #include <sys/time.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <signal.h>
 #include <set>
+#include <map>
 
 #include "eventloop.h"
 
 using std::set;
+using std::map;
 
 namespace eventloop {
 
 class SignalManager {
+ public:
+  int AddEvent(BaseSignalEvent *e);
+  int DeleteEvent(BaseSignalEvent *e);
+  int UpdateEvent(BaseSignalEvent *e);
+
+ private:
+  map<int, set<BaseSignalEvent *> > sig_events_;
+
+ public:
+  static SignalManager *Instance() {
+    if (!instance_) {
+      instance_ = new SignalManager();
+    }
+    return instance_;
+  }
+ private:
+  SignalManager();
+ private:
+  static SignalManager *instance_;
 };
+
+SignalManager *SignalManager::instance_ = NULL;
 
 class TimerManager {
  public:
@@ -127,6 +151,7 @@ EventLoop::EventLoop() {
   epfd_ = epoll_create(256);
   timermanager_ = new TimerManager();
 }
+
 EventLoop::~EventLoop() {
   close(epfd_);
   static_cast<TimerManager *>(timermanager_)->timers_.clear();
@@ -236,4 +261,40 @@ int EventLoop::UpdateEvent(BaseTimerEvent *e) {
 int EventLoop::DeleteEvent(BaseTimerEvent *e) {
   return static_cast<TimerManager *>(timermanager_)->DeleteEvent(e);
 }
+
+static void sig_handler(int signo) {
+}
+
+int SignalManager::AddEvent(BaseSignalEvent *e) {
+  struct sigaction action;
+  action.sa_handler = sig_handler;
+  action.sa_flags = SA_RESTART;
+  sigemptyset(&action.sa_mask);
+
+  if (e->GetType() & BaseSignalEvent::INT) {
+    sig_events_[SIGINT].insert(e);
+    sigaction(SIGINT, &action, NULL);
+  }
+
+  if (e->GetType() & BaseSignalEvent::PIPE) {
+    sig_events_[SIGPIPE].insert(e);
+    sigaction(SIGPIPE, &action, NULL);
+  }
+
+  if (e->GetType() & BaseSignalEvent::TERM) {
+    sig_events_[SIGTERM].insert(e);
+    sigaction(SIGTERM, &action, NULL);
+  }
+
+  return 0;
+}
+
+int SignalManager::DeleteEvent(BaseSignalEvent *e) {
+  return 0;
+}
+
+int SignalManager::UpdateEvent(BaseSignalEvent *e) {
+  return 0;
+}
+
 }
