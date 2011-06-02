@@ -221,7 +221,8 @@ int EventLoop::UpdateEvent(BaseFileEvent *e) {
 }
 
 int EventLoop::DeleteEvent(BaseFileEvent *e) {
-  return 0;
+  struct epoll_event ev; //kernel before 2.6.9 requires
+  return epoll_ctl(epfd_, EPOLL_CTL_DEL, e->GetFile(), &ev);
 }
 
 int EventLoop::AddEvent(BaseTimerEvent *e) {
