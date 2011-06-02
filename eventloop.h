@@ -80,7 +80,8 @@ class BaseTimerEvent: public BaseEvent {
 
 class EventLoop {
  public:
-  explicit EventLoop();
+  EventLoop();
+  ~EventLoop();
 
  public:
   int AddEvent(BaseFileEvent *e);
@@ -93,7 +94,8 @@ class EventLoop {
 
   int ProcessEvents(int timeout);
 
-  void Loop();
+  void StartLoop();
+  void StopLoop();
 
   timeval Now() const { return now_; }
 
@@ -106,6 +108,7 @@ class EventLoop {
   epoll_event evs_[256];
   void *timermanager_;
   timeval now_;
+  bool stop_;
 };
 
 int SetNonblocking(int fd);

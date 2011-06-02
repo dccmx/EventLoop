@@ -127,6 +127,11 @@ EventLoop::EventLoop() {
   epfd_ = epoll_create(256);
   timermanager_ = new TimerManager();
 }
+EventLoop::~EventLoop() {
+  close(epfd_);
+  static_cast<TimerManager *>(timermanager_)->timers_.clear();
+  delete static_cast<TimerManager *>(timermanager_);
+}
 
 int EventLoop::GetFileEvents(int timeout) {
   return epoll_wait(epfd_, evs_, 256, timeout);
@@ -140,8 +145,9 @@ int EventLoop::DoTimeout() {
     timeval tv = (*ite)->GetTime();
     if ((tv.tv_sec > now_.tv_sec) || (tv.tv_sec == now_.tv_sec && tv.tv_usec > now_.tv_usec)) break;
     n++;
+    BaseTimerEvent *e = *ite;
     timers.erase(ite);
-    (*ite)->Process(BaseTimerEvent::TIMER);
+    e->Process(BaseTimerEvent::TIMER);
     ite = timers.begin();
   }
   return n;
@@ -166,8 +172,13 @@ int EventLoop::ProcessEvents(int timeout) {
   return nt + n;
 }
 
-void EventLoop::Loop() {
-  while (true) {
+void EventLoop::StopLoop() {
+  stop_ = true;
+}
+
+void EventLoop::StartLoop() {
+  stop_ = false;
+  while (!stop_) {
     int timeout = 100;
     if (static_cast<TimerManager *>(timermanager_)->timers_.size() > 0) {
       TimerManager::TimerSet::iterator ite = static_cast<TimerManager *>(timermanager_)->timers_.begin();

@@ -64,6 +64,7 @@ class Timer : public BaseTimerEvent {
     tv.tv_sec += 1;
     SetTime(tv);
     el.UpdateEvent(this);
+    el.StopLoop();
   }
 };
 
@@ -91,7 +92,7 @@ int main(int argc, char **argv) {
 
   el.AddEvent(&t);
 
-  el.Loop();
+  el.StartLoop();
 
   return 0;
 }
