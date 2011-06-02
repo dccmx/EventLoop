@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <set>
@@ -26,7 +27,20 @@ class TimerManager {
   int UpdateEvent(BaseTimerEvent *e);
 
  private:
-  set<BaseTimerEvent*> timers_;
+  friend class EventLoop;
+  class Compare {
+   public:
+    bool operator()(const BaseTimerEvent *e1, const BaseTimerEvent *e2) {
+      timeval t1 = e1->GetTime();
+      timeval t2 = e2->GetTime();
+      return (t1.tv_sec < t2.tv_sec) || (t1.tv_sec == t2.tv_sec && t1.tv_usec < t2.tv_usec);
+    }
+  };
+
+  typedef set<BaseTimerEvent *, Compare> TimerSet;
+
+ private:
+  TimerSet timers_;
 };
 
 int SetNonblocking(int fd) {
@@ -94,34 +108,72 @@ int BindTo(const char *host, short port) {
   return fd;
 }
 
+// TimerManager implementation
+int TimerManager::AddEvent(BaseTimerEvent *e) {
+  return !timers_.insert(e).second;
+}
+
+int TimerManager::DeleteEvent(BaseTimerEvent *e) {
+  return timers_.erase(e) != 1;
+}
+
+int TimerManager::UpdateEvent(BaseTimerEvent *e) {
+  if (timers_.erase(e) != 1) return 1;
+  return !timers_.insert(e).second;
+}
+
+// EventLoop implementation
 EventLoop::EventLoop() {
   epfd_ = epoll_create(256);
   timermanager_ = new TimerManager();
 }
 
-int EventLoop::ProcessFileEvents(int timeout) {
-  int i, n;
-  epoll_event evs[256];
-  n = epoll_wait(epfd_, evs, 256, timeout);
-  for(i = 0; i < n; i++) {
-    BaseEvent *e = (BaseEvent *)evs[i].data.ptr;
-    uint32_t events = 0;
-    if (evs[i].events & EPOLLIN) events |= BaseFileEvent::READ;
-    if (evs[i].events & EPOLLOUT) events |= BaseFileEvent::WRITE;
-    if (evs[i].events & (EPOLLHUP | EPOLLERR | EPOLLRDHUP)) events |= BaseFileEvent::ERROR;
+int EventLoop::GetFileEvents(int timeout) {
+  return epoll_wait(epfd_, evs_, 256, timeout);
+}
 
-    e->Process(events);
+int EventLoop::DoTimeout() {
+  int n = 0;
+  TimerManager::TimerSet& timers = static_cast<TimerManager *>(timermanager_)->timers_;
+  TimerManager::TimerSet::iterator ite = timers.begin();
+  while (ite != timers.end()) {
+    timeval tv = (*ite)->GetTime();
+    if ((tv.tv_sec > now_.tv_sec) || (tv.tv_sec == now_.tv_sec && tv.tv_usec > now_.tv_usec)) break;
+    n++;
+    (*ite)->Process(BaseTimerEvent::TIMER);
+    timers.erase(ite);
+    ite = timers.begin();
   }
   return n;
 }
 
 int EventLoop::ProcessEvents(int timeout) {
-  return ProcessFileEvents(timeout);
+  int i, nt, n = GetFileEvents(timeout);
+  gettimeofday(&now_, NULL);
+  nt = DoTimeout();
+  for(i = 0; i < n; i++) {
+    BaseEvent *e = (BaseEvent *)evs_[i].data.ptr;
+    uint32_t events = 0;
+    if (evs_[i].events & EPOLLIN) events |= BaseFileEvent::READ;
+    if (evs_[i].events & EPOLLOUT) events |= BaseFileEvent::WRITE;
+    if (evs_[i].events & (EPOLLHUP | EPOLLERR | EPOLLRDHUP)) events |= BaseFileEvent::ERROR;
+
+    e->Process(events);
+  }
+
+  return nt + n;
 }
 
 void EventLoop::Loop() {
   while (true) {
-    ProcessEvents(1000);
+    int timeout = 100;
+    if (static_cast<TimerManager *>(timermanager_)->timers_.size() > 0) {
+      TimerManager::TimerSet::iterator ite = static_cast<TimerManager *>(timermanager_)->timers_.begin();
+      timeval tv = (*ite)->GetTime();
+      int t = tv.tv_sec * 1000 + tv.tv_usec / 1000;
+      if (timeout > t) timeout = t;
+    }
+    ProcessEvents(timeout);
   }
 }
 
@@ -159,16 +211,15 @@ int EventLoop::DeleteEvent(BaseFileEvent *e) {
   return 0;
 }
 
-int TimerManager::AddEvent(BaseTimerEvent *e) {
-  return 0;
+int EventLoop::AddEvent(BaseTimerEvent *e) {
+  return static_cast<TimerManager *>(timermanager_)->AddEvent(e);
 }
 
-int TimerManager::DeleteEvent(BaseTimerEvent *e) {
-  return 0;
+int EventLoop::UpdateEvent(BaseTimerEvent *e) {
+  return static_cast<TimerManager *>(timermanager_)->UpdateEvent(e);
 }
 
-int TimerManager::UpdateEvent(BaseTimerEvent *e) {
-  return 0;
+int EventLoop::DeleteEvent(BaseTimerEvent *e) {
+  return static_cast<TimerManager *>(timermanager_)->DeleteEvent(e);
 }
-
 }

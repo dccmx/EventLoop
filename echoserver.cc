@@ -5,6 +5,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <sys/time.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <errno.h>
@@ -58,14 +59,7 @@ class AcceptEvent: public BaseFileEvent {
 class Timer : public BaseTimerEvent {
  public:
   void Process(uint32_t events) {
-    printf("%u\n", static_cast<uint32_t>(time(0)));
-  }
-};
-
-class Cmp {
- public:
-  int operator()(int a, int b) {
-    return a-b;
+    printf("timer:%u\n", static_cast<uint32_t>(time(0)));
   }
 };
 
@@ -84,6 +78,14 @@ int main(int argc, char **argv) {
   e.SetFile(fd);
 
   el.AddEvent(&e);
+
+  Timer t;
+  timeval tv;
+  gettimeofday(&tv, NULL);
+  tv.tv_sec += 3;
+  t.SetTime(tv);
+
+  el.AddEvent(&t);
 
   el.Loop();
 

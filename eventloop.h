@@ -21,7 +21,7 @@ class BaseEvent {
 
  public:
   void SetType(uint32_t type) { type_ = type; }
-  uint32_t GetType() { return type_; }
+  uint32_t GetType() const { return type_; }
 
  private:
   uint32_t type_;
@@ -40,7 +40,7 @@ class BaseFileEvent: public BaseEvent {
 
  public:
   void SetFile(int fd) { fd_ = fd; }
-  int GetFile() { return fd_; }
+  int GetFile() const { return fd_; }
 
  public:
   virtual void Process(uint32_t type) = 0;
@@ -71,7 +71,7 @@ class BaseTimerEvent: public BaseEvent {
 
  public:
   void SetTime(timeval tv) { time_ = tv; }
-  timeval GetTime() { return time_; }
+  timeval GetTime() const { return time_; }
 
  private:
   timeval time_;
@@ -95,11 +95,14 @@ class EventLoop {
   void Loop();
 
  private:
-  int ProcessFileEvents(int timeout);
+  int GetFileEvents(int timeout);
+  int DoTimeout();
 
  private:
   int epfd_;
+  epoll_event evs_[256];
   void *timermanager_;
+  timeval now_;
 };
 
 int SetNonblocking(int fd);
