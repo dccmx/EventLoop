@@ -27,6 +27,7 @@ class SignalManager {
   int UpdateEvent(BaseSignalEvent *e);
 
  private:
+  friend void sig_handler(int signo);
   map<int, set<BaseSignalEvent *> > sig_events_;
 
  public:
@@ -37,7 +38,7 @@ class SignalManager {
     return instance_;
   }
  private:
-  SignalManager();
+  SignalManager() {}
  private:
   static SignalManager *instance_;
 };
@@ -262,7 +263,23 @@ int EventLoop::DeleteEvent(BaseTimerEvent *e) {
   return static_cast<TimerManager *>(timermanager_)->DeleteEvent(e);
 }
 
-static void sig_handler(int signo) {
+int EventLoop::AddEvent(BaseSignalEvent *e) {
+  return SignalManager::Instance()->AddEvent(e);
+}
+
+int EventLoop::DeleteEvent(BaseSignalEvent *e) {
+  return SignalManager::Instance()->AddEvent(e);
+}
+
+int EventLoop::UpdateEvent(BaseSignalEvent *e) {
+  return SignalManager::Instance()->AddEvent(e);
+}
+
+void sig_handler(int signo) {
+  set<BaseSignalEvent *> events = SignalManager::Instance()->sig_events_[signo];
+  for (set<BaseSignalEvent *>::iterator ite = events.begin(); ite != events.end(); ++ite) {
+    (*ite)->Process(BaseSignalEvent::INT);
+  }
 }
 
 int SignalManager::AddEvent(BaseSignalEvent *e) {
@@ -290,10 +307,35 @@ int SignalManager::AddEvent(BaseSignalEvent *e) {
 }
 
 int SignalManager::DeleteEvent(BaseSignalEvent *e) {
+  if (e->GetType() & BaseSignalEvent::INT) {
+    sig_events_[SIGINT].erase(e);
+  }
+
+  if (e->GetType() & BaseSignalEvent::PIPE) {
+    sig_events_[SIGPIPE].erase(e);
+  }
+
+  if (e->GetType() & BaseSignalEvent::TERM) {
+    sig_events_[SIGTERM].erase(e);
+  }
   return 0;
 }
 
 int SignalManager::UpdateEvent(BaseSignalEvent *e) {
+  if (e->GetType() & BaseSignalEvent::INT) {
+    sig_events_[SIGINT].erase(e);
+    sig_events_[SIGINT].insert(e);
+  }
+
+  if (e->GetType() & BaseSignalEvent::PIPE) {
+    sig_events_[SIGPIPE].erase(e);
+    sig_events_[SIGPIPE].insert(e);
+  }
+
+  if (e->GetType() & BaseSignalEvent::TERM) {
+    sig_events_[SIGTERM].erase(e);
+    sig_events_[SIGTERM].insert(e);
+  }
   return 0;
 }
 

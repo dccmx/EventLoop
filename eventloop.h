@@ -92,6 +92,10 @@ class EventLoop {
   int DeleteEvent(BaseTimerEvent *e);
   int UpdateEvent(BaseTimerEvent *e);
 
+  int AddEvent(BaseSignalEvent *e);
+  int DeleteEvent(BaseSignalEvent *e);
+  int UpdateEvent(BaseSignalEvent *e);
+
   int ProcessEvents(int timeout);
 
   void StartLoop();

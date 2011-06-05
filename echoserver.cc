@@ -64,6 +64,13 @@ class Timer : public BaseTimerEvent {
     tv.tv_sec += 1;
     SetTime(tv);
     el.UpdateEvent(this);
+  }
+};
+
+class Signal : public BaseSignalEvent {
+ public:
+  void Process(uint32_t events) {
+    printf("shutdown\n");
     el.StopLoop();
   }
 };
@@ -91,6 +98,10 @@ int main(int argc, char **argv) {
   t.SetTime(tv);
 
   el.AddEvent(&t);
+
+  Signal s;
+  s.SetType(BaseSignalEvent::INT);
+  el.AddEvent(&s);
 
   el.StartLoop();
 
