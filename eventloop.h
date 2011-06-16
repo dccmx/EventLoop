@@ -33,7 +33,7 @@ class BaseEvent {
   uint32_t events_;
 };
 
-class BaseFileEvent: public BaseEvent {
+class BaseFileEvent : public BaseEvent {
   friend class EventLoop;
  public:
   static const uint32_t  READ = 1 << 0;
@@ -55,7 +55,7 @@ class BaseFileEvent: public BaseEvent {
   int file;
 };
 
-class BufferFileEvent: public BaseFileEvent {
+class BufferFileEvent : public BaseFileEvent {
   friend class EventLoop;
  public:
   explicit BufferFileEvent()
@@ -86,7 +86,7 @@ class BufferFileEvent: public BaseFileEvent {
   EventLoop *el_;
 };
 
-class BaseSignalEvent: public BaseEvent {
+class BaseSignalEvent : public BaseEvent {
   friend class EventLoop;
  public:
   static const uint32_t INT = 1 << 0;
@@ -99,7 +99,7 @@ class BaseSignalEvent: public BaseEvent {
   virtual ~BaseSignalEvent() {};
 };
 
-class BaseTimerEvent: public BaseEvent {
+class BaseTimerEvent : public BaseEvent {
   friend class EventLoop;
  public:
   static const uint32_t TIMER = 1 << 0;
