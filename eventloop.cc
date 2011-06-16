@@ -285,7 +285,7 @@ int EventLoop::UpdateEvent(BaseSignalEvent *e) {
 }
 
 int EventLoop::AddEvent(BufferFileEvent *e) {
-  AddEvent(static_cast<BaseFileEvent *>(e));
+  AddEvent(dynamic_cast<BaseFileEvent *>(e));
   e->el_ = this;
   return 0;
 }
