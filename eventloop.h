@@ -64,22 +64,22 @@ class BufferFileEvent : public BaseFileEvent {
   virtual ~BufferFileEvent() {};
 
  public:
-  void Recive(unsigned char *buffer, uint32_t len);
-  void Send(unsigned char *buffer, uint32_t len);
+  void Recive(char *buffer, uint32_t len);
+  void Send(char *buffer, uint32_t len);
 
-  virtual void OnRecived(unsigned char *buffer, uint32_t len) = 0;
-  virtual void OnSent(unsigned char *buffer, uint32_t len) = 0;
+  virtual void OnRecived(char *buffer, uint32_t len) = 0;
+  virtual void OnSent(char *buffer, uint32_t len) = 0;
   virtual void OnError() = 0;
 
  private:
   void OnEvents(uint32_t events);
 
  private:
-  unsigned char *recvbuf_;
+  char *recvbuf_;
   uint32_t torecv_;
   uint32_t recvd_;
 
-  unsigned char *sendbuf_;
+  char *sendbuf_;
   uint32_t tosend_;
   uint32_t sent_;
 

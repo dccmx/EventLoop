@@ -389,13 +389,13 @@ void BufferFileEvent::OnEvents(uint32_t events) {
   }
 }
 
-void BufferFileEvent::Recive(unsigned char *buffer, uint32_t len) {
+void BufferFileEvent::Recive(char *buffer, uint32_t len) {
   recvbuf_ = buffer;
   torecv_ = len;
   recvd_ = 0;
 }
 
-void BufferFileEvent::Send(unsigned char *buffer, uint32_t len) {
+void BufferFileEvent::Send(char *buffer, uint32_t len) {
   sendbuf_ = buffer;
   tosend_ = len;
   sent_ = 0;
