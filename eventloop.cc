@@ -27,7 +27,7 @@ class SignalManager {
   int UpdateEvent(BaseSignalEvent *e);
 
  private:
-  friend void sig_handler(int signo);
+  friend void SignalHandler(int signo);
   map<int, set<BaseSignalEvent *> > sig_events_;
 
  public:
@@ -133,6 +133,10 @@ int BindTo(const char *host, short port) {
   return fd;
 }
 
+int timediff(timeval tv1, timeval tv2) {
+  return (tv1.tv_sec - tv2.tv_sec) * 1000 + (tv1.tv_usec - tv2.tv_usec) / 1000;
+}
+
 // TimerManager implementation
 int TimerManager::AddEvent(BaseTimerEvent *e) {
   return !timers_.insert(e).second;
@@ -169,18 +173,20 @@ int EventLoop::DoTimeout() {
   TimerManager::TimerSet::iterator ite = timers.begin();
   while (ite != timers.end()) {
     timeval tv = (*ite)->GetTime();
-    if ((tv.tv_sec > now_.tv_sec) || (tv.tv_sec == now_.tv_sec && tv.tv_usec > now_.tv_usec)) break;
+    if (timediff(now_, tv) < 0) break;
     n++;
     BaseTimerEvent *e = *ite;
     timers.erase(ite);
-    e->Process(BaseTimerEvent::TIMER);
+    e->OnEvents(BaseTimerEvent::TIMER);
     ite = timers.begin();
   }
   return n;
 }
 
 int EventLoop::ProcessEvents(int timeout) {
-  int i, nt, n = GetFileEvents(timeout);
+  int i, nt, n;
+
+  n = GetFileEvents(timeout);
 
   gettimeofday(&now_, NULL);
 
@@ -192,7 +198,7 @@ int EventLoop::ProcessEvents(int timeout) {
     if (evs_[i].events & EPOLLIN) events |= BaseFileEvent::READ;
     if (evs_[i].events & EPOLLOUT) events |= BaseFileEvent::WRITE;
     if (evs_[i].events & (EPOLLHUP | EPOLLERR | EPOLLRDHUP)) events |= BaseFileEvent::ERROR;
-    e->Process(events);
+    e->OnEvents(events);
   }
 
   return nt + n;
@@ -206,49 +212,52 @@ void EventLoop::StartLoop() {
   stop_ = false;
   while (!stop_) {
     int timeout = 100;
+    gettimeofday(&now_, NULL);
+
     if (static_cast<TimerManager *>(timermanager_)->timers_.size() > 0) {
       TimerManager::TimerSet::iterator ite = static_cast<TimerManager *>(timermanager_)->timers_.begin();
       timeval tv = (*ite)->GetTime();
-      int t = tv.tv_sec * 1000 + tv.tv_usec / 1000;
-      if (timeout > t) timeout = t;
+      int t = timediff(tv, now_);
+      if (t > 0 && timeout > t) timeout = t;
     }
+
     ProcessEvents(timeout);
   }
 }
 
 int EventLoop::AddEvent(BaseFileEvent *e) {
   struct epoll_event ev;
+  uint32_t events = e->events_;
 
-  uint32_t type = e->GetType();
   ev.events = 0;
-  if (type | BaseFileEvent::READ) ev.events |= EPOLLIN;
-  if (type | BaseFileEvent::WRITE) ev.events |= EPOLLOUT;
-  if (type | BaseFileEvent::ERROR) ev.events |= EPOLLHUP | EPOLLERR | EPOLLRDHUP;
-  ev.data.fd = e->GetFile();
+  if (events & BaseFileEvent::READ) ev.events |= EPOLLIN;
+  if (events & BaseFileEvent::WRITE) ev.events |= EPOLLOUT;
+  if (events & BaseFileEvent::ERROR) ev.events |= EPOLLHUP | EPOLLERR | EPOLLRDHUP;
+  ev.data.fd = e->file;
   ev.data.ptr = e;
 
-  SetNonblocking(e->GetFile());
+  SetNonblocking(e->file);
 
-  return epoll_ctl(epfd_, EPOLL_CTL_ADD, e->GetFile(), &ev);
+  return epoll_ctl(epfd_, EPOLL_CTL_ADD, e->file, &ev);
 }
 
 int EventLoop::UpdateEvent(BaseFileEvent *e) {
   struct epoll_event ev;
-  uint32_t type = e->GetType();
+  uint32_t events = e->events_;
 
   ev.events = 0;
-  if (type | BaseFileEvent::READ) ev.events |= EPOLLIN;
-  if (type | BaseFileEvent::WRITE) ev.events |= EPOLLOUT;
-  if (type | BaseFileEvent::ERROR) ev.events |= EPOLLHUP | EPOLLERR | EPOLLRDHUP;
-  ev.data.fd = e->GetFile();
+  if (events & BaseFileEvent::READ) ev.events |= EPOLLIN;
+  if (events & BaseFileEvent::WRITE) ev.events |= EPOLLOUT;
+  if (events & BaseFileEvent::ERROR) ev.events |= EPOLLHUP | EPOLLERR | EPOLLRDHUP;
+  ev.data.fd = e->file;
   ev.data.ptr = e;
 
-  return epoll_ctl(epfd_, EPOLL_CTL_MOD, e->GetFile(), &ev);
+  return epoll_ctl(epfd_, EPOLL_CTL_MOD, e->file, &ev);
 }
 
 int EventLoop::DeleteEvent(BaseFileEvent *e) {
   struct epoll_event ev; //kernel before 2.6.9 requires
-  return epoll_ctl(epfd_, EPOLL_CTL_DEL, e->GetFile(), &ev);
+  return epoll_ctl(epfd_, EPOLL_CTL_DEL, e->file, &ev);
 }
 
 int EventLoop::AddEvent(BaseTimerEvent *e) {
@@ -275,30 +284,36 @@ int EventLoop::UpdateEvent(BaseSignalEvent *e) {
   return SignalManager::Instance()->AddEvent(e);
 }
 
-void sig_handler(int signo) {
+int EventLoop::AddEvent(BufferFileEvent *e) {
+  AddEvent(static_cast<BaseFileEvent *>(e));
+  e->el_ = this;
+  return 0;
+}
+
+void SignalHandler(int signo) {
   set<BaseSignalEvent *> events = SignalManager::Instance()->sig_events_[signo];
   for (set<BaseSignalEvent *>::iterator ite = events.begin(); ite != events.end(); ++ite) {
-    (*ite)->Process(BaseSignalEvent::INT);
+    (*ite)->OnEvents(BaseSignalEvent::INT);
   }
 }
 
 int SignalManager::AddEvent(BaseSignalEvent *e) {
   struct sigaction action;
-  action.sa_handler = sig_handler;
+  action.sa_handler = SignalHandler;
   action.sa_flags = SA_RESTART;
   sigemptyset(&action.sa_mask);
 
-  if (e->GetType() & BaseSignalEvent::INT) {
+  if (e->events_ & BaseSignalEvent::INT) {
     sig_events_[SIGINT].insert(e);
     sigaction(SIGINT, &action, NULL);
   }
 
-  if (e->GetType() & BaseSignalEvent::PIPE) {
+  if (e->events_ & BaseSignalEvent::PIPE) {
     sig_events_[SIGPIPE].insert(e);
     sigaction(SIGPIPE, &action, NULL);
   }
 
-  if (e->GetType() & BaseSignalEvent::TERM) {
+  if (e->events_ & BaseSignalEvent::TERM) {
     sig_events_[SIGTERM].insert(e);
     sigaction(SIGTERM, &action, NULL);
   }
@@ -307,36 +322,87 @@ int SignalManager::AddEvent(BaseSignalEvent *e) {
 }
 
 int SignalManager::DeleteEvent(BaseSignalEvent *e) {
-  if (e->GetType() & BaseSignalEvent::INT) {
+  if (e->events_ & BaseSignalEvent::INT) {
     sig_events_[SIGINT].erase(e);
   }
 
-  if (e->GetType() & BaseSignalEvent::PIPE) {
+  if (e->events_ & BaseSignalEvent::PIPE) {
     sig_events_[SIGPIPE].erase(e);
   }
 
-  if (e->GetType() & BaseSignalEvent::TERM) {
+  if (e->events_ & BaseSignalEvent::TERM) {
     sig_events_[SIGTERM].erase(e);
   }
   return 0;
 }
 
 int SignalManager::UpdateEvent(BaseSignalEvent *e) {
-  if (e->GetType() & BaseSignalEvent::INT) {
+  if (e->events_ & BaseSignalEvent::INT) {
     sig_events_[SIGINT].erase(e);
     sig_events_[SIGINT].insert(e);
   }
 
-  if (e->GetType() & BaseSignalEvent::PIPE) {
+  if (e->events_ & BaseSignalEvent::PIPE) {
     sig_events_[SIGPIPE].erase(e);
     sig_events_[SIGPIPE].insert(e);
   }
 
-  if (e->GetType() & BaseSignalEvent::TERM) {
+  if (e->events_ & BaseSignalEvent::TERM) {
     sig_events_[SIGTERM].erase(e);
     sig_events_[SIGTERM].insert(e);
   }
   return 0;
+}
+
+//BufferFileEvent implementation
+void BufferFileEvent::OnEvents(uint32_t events) {
+  if (events & BaseFileEvent::ERROR) {
+    OnError();
+    return;
+  }
+
+  if (events & BaseFileEvent::READ) {
+    int len = read(file, recvbuf_ + recvd_, torecv_ - recvd_);
+    if (len <= 0) {
+      OnError();
+      return;
+    }
+
+    recvd_ += len;
+    if (recvd_ == torecv_) {
+      OnRecived(recvbuf_, recvd_);
+    }
+  }
+
+  if (events & BaseFileEvent::WRITE) {
+    int len = write(file, sendbuf_ + sent_, tosend_ - sent_);
+    if (len < 0) {
+      OnError();
+      return;
+    }
+
+    sent_ += len;
+    if (sent_ == tosend_) {
+      OnSent(sendbuf_, sent_);
+      SetEvents(events_ & ~BaseFileEvent::WRITE);
+    }
+  }
+}
+
+void BufferFileEvent::Recive(unsigned char *buffer, uint32_t len) {
+  recvbuf_ = buffer;
+  torecv_ = len;
+  recvd_ = 0;
+}
+
+void BufferFileEvent::Send(unsigned char *buffer, uint32_t len) {
+  sendbuf_ = buffer;
+  tosend_ = len;
+  sent_ = 0;
+  if (!(events_ & BaseFileEvent::WRITE)) {
+    SetEvents(events_ | BaseFileEvent::WRITE);
+    el_->UpdateEvent(this);
+  }
 }
 
 }

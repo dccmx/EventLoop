@@ -7,67 +7,105 @@
 
 namespace eventloop {
 
+class EventLoop;
+class SignalManager;
+
 class BaseEvent {
+  friend class EventLoop;
+  friend class SignalManager;
  public:
   static const uint32_t  NONE = 0;
   static const uint32_t  ONESHOT = 1 << 30;
   static const uint32_t  TIMEOUT = 1 << 31;
 
  public:
-  BaseEvent(uint32_t type = 0) { type_ = type; }
+  BaseEvent(uint32_t events = 0) { events_ = events; }
 
   virtual ~BaseEvent() {};
 
-  virtual void Process(uint32_t type) = 0;
+  virtual void OnEvents(uint32_t events) = 0;
 
  public:
-  void SetType(uint32_t type) { type_ = type; }
-  uint32_t GetType() const { return type_; }
+  virtual void SetEvents(uint32_t events) { events_ = events; }
+  virtual uint32_t GetEvents() const { return events_; }
 
- private:
-  uint32_t type_;
+ protected:
+  uint32_t events_;
 };
 
 class BaseFileEvent: public BaseEvent {
+  friend class EventLoop;
  public:
   static const uint32_t  READ = 1 << 0;
   static const uint32_t  WRITE = 1 << 1;
   static const uint32_t  ERROR = 1 << 2;
 
  public:
-  explicit BaseFileEvent(uint32_t type = BaseEvent::NONE) : BaseEvent(type) {}
-
+  explicit BaseFileEvent(uint32_t events = BaseEvent::NONE) : BaseEvent(events) {}
   virtual ~BaseFileEvent() {};
 
  public:
-  void SetFile(int fd) { fd_ = fd; }
-  int GetFile() const { return fd_; }
+  void SetFile(int fd) { file = fd; }
+  int GetFile() const { return file; }
 
  public:
-  virtual void Process(uint32_t type) = 0;
+  virtual void OnEvents(uint32_t events) = 0;
+
+ protected:
+  int file;
+};
+
+class BufferFileEvent: public BaseFileEvent {
+  friend class EventLoop;
+ public:
+  explicit BufferFileEvent()
+    :BaseFileEvent(BaseFileEvent::READ | BaseFileEvent::ERROR) {
+  }
+  virtual ~BufferFileEvent() {};
+
+ public:
+  void Recive(unsigned char *buffer, uint32_t len);
+  void Send(unsigned char *buffer, uint32_t len);
+
+  virtual void OnRecived(unsigned char *buffer, uint32_t len) = 0;
+  virtual void OnSent(unsigned char *buffer, uint32_t len) = 0;
+  virtual void OnError() = 0;
 
  private:
-  int fd_;
+  void OnEvents(uint32_t events);
+
+ private:
+  unsigned char *recvbuf_;
+  uint32_t torecv_;
+  uint32_t recvd_;
+
+  unsigned char *sendbuf_;
+  uint32_t tosend_;
+  uint32_t sent_;
+
+  EventLoop *el_;
 };
 
 class BaseSignalEvent: public BaseEvent {
+  friend class EventLoop;
  public:
   static const uint32_t INT = 1 << 0;
   static const uint32_t PIPE = 1 << 1;
   static const uint32_t TERM = 1 << 2;
 
  public:
-  explicit BaseSignalEvent(uint32_t type = BaseEvent::NONE) : BaseEvent(type) {}
+  explicit BaseSignalEvent(uint32_t events = BaseEvent::NONE) : BaseEvent(events) {}
 
   virtual ~BaseSignalEvent() {};
 };
 
 class BaseTimerEvent: public BaseEvent {
+  friend class EventLoop;
  public:
   static const uint32_t TIMER = 1 << 0;
 
  public:
-  explicit BaseTimerEvent(uint32_t type = BaseEvent::NONE) : BaseEvent(type) {}
+  explicit BaseTimerEvent(uint32_t events = BaseEvent::NONE) : BaseEvent(events) {}
   virtual ~BaseTimerEvent() {};
 
  public:
@@ -84,6 +122,7 @@ class EventLoop {
   ~EventLoop();
 
  public:
+  //add delete & update event objects
   int AddEvent(BaseFileEvent *e);
   int DeleteEvent(BaseFileEvent *e);
   int UpdateEvent(BaseFileEvent *e);
@@ -96,8 +135,12 @@ class EventLoop {
   int DeleteEvent(BaseSignalEvent *e);
   int UpdateEvent(BaseSignalEvent *e);
 
+  int AddEvent(BufferFileEvent *e);
+
+  //do epoll_waite and collect events
   int ProcessEvents(int timeout);
 
+  //event loop control
   void StartLoop();
   void StopLoop();
 
@@ -110,9 +153,11 @@ class EventLoop {
  private:
   int epfd_;
   epoll_event evs_[256];
-  void *timermanager_;
+
   timeval now_;
   bool stop_;
+
+  void *timermanager_;
 };
 
 int SetNonblocking(int fd);

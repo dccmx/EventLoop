@@ -18,19 +18,19 @@ EventLoop el;
 
 class ReadEvent : public BaseFileEvent {
  public:
-  void Process(uint32_t events) {
+  void OnEvents(uint32_t events) {
     if (events & BaseFileEvent::READ) {
       char a;
-      if (read(this->GetFile(), &a, sizeof(char)) == 0) {
-        close(this->GetFile());
+      if (read(file, &a, sizeof(char)) == 0) {
+        close(file);
         delete this;
         return;
       }
-      write(this->GetFile(), &a, sizeof(char));
+      write(file, &a, sizeof(char));
     }
 
     if (events & BaseFileEvent::ERROR) {
-      close(this->GetFile());
+      close(file);
       delete this;
     }
   }
@@ -38,27 +38,27 @@ class ReadEvent : public BaseFileEvent {
 
 class AcceptEvent: public BaseFileEvent {
  public:
-  void Process(uint32_t events) {
+  void OnEvents(uint32_t events) {
     if (events & BaseFileEvent::READ) {
       uint32_t size = 0;
       struct sockaddr_in addr;
 
-      int fd = accept(this->GetFile(), (struct sockaddr*)&addr, &size);
+      int fd = accept(file, (struct sockaddr*)&addr, &size);
       ReadEvent *e = new ReadEvent();
       e->SetFile(fd);
-      e->SetType(BaseFileEvent::READ | BaseFileEvent::ERROR);
+      e->SetEvents(BaseFileEvent::READ | BaseFileEvent::ERROR);
       el.AddEvent(e);
     }
 
     if (events & BaseFileEvent::ERROR) {
-      close(this->GetFile());
+      close(file);
     }
   }
 };
 
 class Timer : public BaseTimerEvent {
  public:
-  void Process(uint32_t events) {
+  void OnEvents(uint32_t events) {
     printf("timer:%u\n", static_cast<uint32_t>(time(0)));
     timeval tv = el.Now();
     tv.tv_sec += 1;
@@ -69,7 +69,7 @@ class Timer : public BaseTimerEvent {
 
 class Signal : public BaseSignalEvent {
  public:
-  void Process(uint32_t events) {
+  void OnEvents(uint32_t events) {
     printf("shutdown\n");
     el.StopLoop();
   }
@@ -79,7 +79,7 @@ int main(int argc, char **argv) {
   int fd;
   AcceptEvent e;
 
-  e.SetType(BaseFileEvent::READ | BaseFileEvent::ERROR);
+  e.SetEvents(BaseFileEvent::READ | BaseFileEvent::ERROR);
 
   fd = BindTo("0.0.0.0", 12345);
   if (fd == -1) {
@@ -100,7 +100,7 @@ int main(int argc, char **argv) {
   el.AddEvent(&t);
 
   Signal s;
-  s.SetType(BaseSignalEvent::INT);
+  s.SetEvents(BaseSignalEvent::INT);
   el.AddEvent(&s);
 
   el.StartLoop();
