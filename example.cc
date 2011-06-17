@@ -16,24 +16,41 @@ using namespace eventloop;
 
 EventLoop el;
 
-class ReadEvent : public BaseFileEvent {
+class BufferEvent : public BufferFileEvent {
  public:
-  void OnEvents(uint32_t events) {
-    if (events & BaseFileEvent::READ) {
-      char a;
-      if (read(file, &a, sizeof(char)) == 0) {
-        close(file);
-        delete this;
-        return;
-      }
-      write(file, &a, sizeof(char));
-    }
+  BufferEvent() {
+    state_ = 0;
+    Recive(buf_, 1);
+  }
 
-    if (events & BaseFileEvent::ERROR) {
-      close(file);
-      delete this;
+  void OnRecived(char *buffer, uint32_t len) {
+    switch (state_) {
+      case 0:
+        len_ = buf_[0] - '0';
+        Recive(buf_, len_);
+        state_ = 1;
+        break;
+      case 1:
+        Send(buf_, len_);
+        state_ = 2;
+        break;
+      default:
+        break;
     }
   }
+
+  void OnSent(char *buffer, uint32_t len) {
+    state_ = 0;
+    Recive(buf_, 1);
+  }
+
+  void OnError() {
+  }
+
+ private:
+  char buf_[1024];
+  int len_;
+  int state_;
 };
 
 class AcceptEvent: public BaseFileEvent {
@@ -44,15 +61,25 @@ class AcceptEvent: public BaseFileEvent {
       struct sockaddr_in addr;
 
       int fd = accept(file, (struct sockaddr*)&addr, &size);
-      ReadEvent *e = new ReadEvent();
+      BufferEvent *e = new BufferEvent();
       e->SetFile(fd);
-      e->SetEvents(BaseFileEvent::READ | BaseFileEvent::ERROR);
       el.AddEvent(e);
     }
 
     if (events & BaseFileEvent::ERROR) {
       close(file);
     }
+  }
+};
+
+class Timer : public BaseTimerEvent {
+ public:
+  void OnEvents(uint32_t events) {
+    printf("timer:%u\n", static_cast<uint32_t>(time(0)));
+    timeval tv = el.Now();
+    tv.tv_sec += 1;
+    SetTime(tv);
+    el.UpdateEvent(this);
   }
 };
 
@@ -70,7 +97,7 @@ int main(int argc, char **argv) {
 
   e.SetEvents(BaseFileEvent::READ | BaseFileEvent::ERROR);
 
-  fd = BindTo("0.0.0.0", 22222);
+  fd = BindTo("0.0.0.0", 11111);
   if (fd == -1) {
     printf("binding address %s", strerror(errno));
     return -1;
@@ -79,6 +106,14 @@ int main(int argc, char **argv) {
   e.SetFile(fd);
 
   el.AddEvent(&e);
+
+  Timer t;
+  timeval tv;
+  gettimeofday(&tv, NULL);
+  tv.tv_sec += 3;
+  t.SetTime(tv);
+
+  el.AddEvent(&t);
 
   Signal s;
   s.SetEvents(BaseSignalEvent::INT);

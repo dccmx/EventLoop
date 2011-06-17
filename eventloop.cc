@@ -384,7 +384,8 @@ void BufferFileEvent::OnEvents(uint32_t events) {
     sent_ += len;
     if (sent_ == tosend_) {
       OnSent(sendbuf_, sent_);
-      SetEvents(events_ & ~BaseFileEvent::WRITE);
+      SetEvents(events_ & (~BaseFileEvent::WRITE));
+      el_->UpdateEvent(this);
     }
   }
 }
