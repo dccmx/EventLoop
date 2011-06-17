@@ -197,7 +197,7 @@ int EventLoop::ProcessEvents(int timeout) {
     uint32_t events = 0;
     if (evs_[i].events & EPOLLIN) events |= BaseFileEvent::READ;
     if (evs_[i].events & EPOLLOUT) events |= BaseFileEvent::WRITE;
-    if (evs_[i].events & (EPOLLHUP | EPOLLERR | EPOLLRDHUP)) events |= BaseFileEvent::ERROR;
+    if (evs_[i].events & (EPOLLHUP | EPOLLERR)) events |= BaseFileEvent::ERROR;
     e->OnEvents(events);
   }
 
@@ -232,7 +232,7 @@ int EventLoop::AddEvent(BaseFileEvent *e) {
   ev.events = 0;
   if (events & BaseFileEvent::READ) ev.events |= EPOLLIN;
   if (events & BaseFileEvent::WRITE) ev.events |= EPOLLOUT;
-  if (events & BaseFileEvent::ERROR) ev.events |= EPOLLHUP | EPOLLERR | EPOLLRDHUP;
+  if (events & BaseFileEvent::ERROR) ev.events |= EPOLLHUP | EPOLLERR;
   ev.data.fd = e->file;
   ev.data.ptr = e;
 
@@ -248,7 +248,7 @@ int EventLoop::UpdateEvent(BaseFileEvent *e) {
   ev.events = 0;
   if (events & BaseFileEvent::READ) ev.events |= EPOLLIN;
   if (events & BaseFileEvent::WRITE) ev.events |= EPOLLOUT;
-  if (events & BaseFileEvent::ERROR) ev.events |= EPOLLHUP | EPOLLERR | EPOLLRDHUP;
+  if (events & BaseFileEvent::ERROR) ev.events |= EPOLLHUP | EPOLLERR;
   ev.data.fd = e->file;
   ev.data.ptr = e;
 
