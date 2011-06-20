@@ -226,7 +226,7 @@ void EventLoop::StartLoop() {
 }
 
 int EventLoop::AddEvent(BaseFileEvent *e) {
-  struct epoll_event ev;
+  struct epoll_event ev = {0, {0}};
   uint32_t events = e->events_;
 
   ev.events = 0;
@@ -242,7 +242,7 @@ int EventLoop::AddEvent(BaseFileEvent *e) {
 }
 
 int EventLoop::UpdateEvent(BaseFileEvent *e) {
-  struct epoll_event ev;
+  struct epoll_event ev = {0, {0}};
   uint32_t events = e->events_;
 
   ev.events = 0;

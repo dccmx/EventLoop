@@ -95,7 +95,6 @@ class BaseSignalEvent : public BaseEvent {
 
  public:
   explicit BaseSignalEvent(uint32_t events = BaseEvent::NONE) : BaseEvent(events) {}
-
   virtual ~BaseSignalEvent() {};
 };
 
@@ -114,6 +113,20 @@ class BaseTimerEvent : public BaseEvent {
 
  private:
   timeval time_;
+};
+
+class PeriodicTimerEvent : public BaseTimerEvent {
+  friend class EventLoop;
+ public:
+  explicit PeriodicTimerEvent() {};
+  virtual ~PeriodicTimerEvent() {};
+
+  void Start();
+  void Stop();
+  virtual void OnTimer() = 0;
+
+ private:
+  void OnEvents(uint32_t events);
 };
 
 class EventLoop {
