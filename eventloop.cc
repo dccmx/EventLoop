@@ -79,9 +79,11 @@ int SetNonblocking(int fd) {
   return -1;
 }
 
-int ConnectTo(const char *host, short port) {
+int ConnectTo(const char *host, short port, int async) {
   int fd;
   struct sockaddr_in addr;
+
+  if (host == NULL) return -1;
 
   fd = socket(AF_INET, SOCK_STREAM, 0);
   addr.sin_family = PF_INET;
@@ -94,10 +96,11 @@ int ConnectTo(const char *host, short port) {
     inet_aton(host, &addr.sin_addr);
   }
 
-  SetNonblocking(fd);
+  if (async) SetNonblocking(fd);
 
   if (connect(fd, (struct sockaddr*)&addr, sizeof(struct sockaddr_in)) == -1) {
     if (errno != EINPROGRESS) {
+      close(fd);
       return -1;
     }
   }
@@ -108,6 +111,8 @@ int ConnectTo(const char *host, short port) {
 int BindTo(const char *host, short port) {
   int fd, on = 1;
   struct sockaddr_in addr;
+
+  if (host == NULL) return -1;
 
   if ((fd = socket(PF_INET, SOCK_STREAM, 0)) == -1) {
     return -1;
