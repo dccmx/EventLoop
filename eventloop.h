@@ -177,7 +177,7 @@ int SetNonblocking(int fd);
 
 int BindTo(const char *host, short port);
 
-int ConnectTo(const char *host, short port);
+int ConnectTo(const char *host, short port, int async);
 
 }
 
