@@ -79,7 +79,7 @@ int SetNonblocking(int fd) {
   return -1;
 }
 
-int ConnectTo(const char *host, short port, int async) {
+int ConnectTo(const char *host, short port, bool async) {
   int fd;
   struct sockaddr_in addr;
 
