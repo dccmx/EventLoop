@@ -20,6 +20,7 @@ using std::map;
 
 namespace eventloop {
 
+//singleton class that manages all signals
 class SignalManager {
  public:
   int AddEvent(BaseSignalEvent *e);
@@ -142,7 +143,7 @@ int timediff(timeval tv1, timeval tv2) {
   return (tv1.tv_sec - tv2.tv_sec) * 1000 + (tv1.tv_usec - tv2.tv_usec) / 1000;
 }
 
-// TimerManager implementation
+//TimerManager implementation
 int TimerManager::AddEvent(BaseTimerEvent *e) {
   return !timers_.insert(e).second;
 }
@@ -156,7 +157,18 @@ int TimerManager::UpdateEvent(BaseTimerEvent *e) {
   return !timers_.insert(e).second;
 }
 
-// EventLoop implementation
+//PeriodicTimerEvent implementation
+void PeriodicTimerEvent::OnEvents(uint32_t events) {
+  OnTimer();
+}
+
+void PeriodicTimerEvent::Start() {
+}
+
+void PeriodicTimerEvent::Stop() {
+}
+
+//EventLoop implementation
 EventLoop::EventLoop() {
   epfd_ = epoll_create(256);
   timermanager_ = new TimerManager();
@@ -388,9 +400,9 @@ void BufferFileEvent::OnEvents(uint32_t events) {
 
     sent_ += len;
     if (sent_ == tosend_) {
-      OnSent(sendbuf_, sent_);
       SetEvents(events_ & (~BaseFileEvent::WRITE));
       el_->UpdateEvent(this);
+      OnSent(sendbuf_, sent_);
     }
   }
 }

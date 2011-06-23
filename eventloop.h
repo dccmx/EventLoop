@@ -118,7 +118,7 @@ class BaseTimerEvent : public BaseEvent {
 class PeriodicTimerEvent : public BaseTimerEvent {
   friend class EventLoop;
  public:
-  explicit PeriodicTimerEvent() {};
+  explicit PeriodicTimerEvent(uint32_t events = BaseEvent::NONE) :BaseTimerEvent(events) {};
   virtual ~PeriodicTimerEvent() {};
 
   void Start();
@@ -127,6 +127,9 @@ class PeriodicTimerEvent : public BaseTimerEvent {
 
  private:
   void OnEvents(uint32_t events);
+
+ private:
+  timeval interval_;
 };
 
 class EventLoop {
