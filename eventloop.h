@@ -67,9 +67,9 @@ class BufferFileEvent : public BaseFileEvent {
   void Recive(char *buffer, uint32_t len);
   void Send(char *buffer, uint32_t len);
 
-  virtual void OnRecived(char *buffer, uint32_t len) = 0;
-  virtual void OnSent(char *buffer, uint32_t len) = 0;
-  virtual void OnError() = 0;
+  virtual void OnRecived(char *buffer, uint32_t len) {};
+  virtual void OnSent(char *buffer, uint32_t len) {};
+  virtual void OnError() {};
 
  private:
   void OnEvents(uint32_t events);

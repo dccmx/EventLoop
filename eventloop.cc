@@ -373,11 +373,6 @@ int SignalManager::UpdateEvent(BaseSignalEvent *e) {
 
 //BufferFileEvent implementation
 void BufferFileEvent::OnEvents(uint32_t events) {
-  if (events & BaseFileEvent::ERROR) {
-    OnError();
-    return;
-  }
-
   if (events & BaseFileEvent::READ) {
     int len = read(file, recvbuf_ + recvd_, torecv_ - recvd_);
     if (len <= 0) {
@@ -405,6 +400,12 @@ void BufferFileEvent::OnEvents(uint32_t events) {
       OnSent(sendbuf_, sent_);
     }
   }
+
+  if (events & BaseFileEvent::ERROR) {
+    OnError();
+    return;
+  }
+
 }
 
 void BufferFileEvent::Recive(char *buffer, uint32_t len) {
