@@ -83,6 +83,13 @@ class Timer : public BaseTimerEvent {
   }
 };
 
+class Periodic : public PeriodicTimerEvent {
+ public:
+  void OnTimer() {
+    printf("Periodic timer\n");
+  }
+};
+
 class Signal : public BaseSignalEvent {
  public:
   void OnEvents(uint32_t events) {
@@ -97,7 +104,7 @@ int main(int argc, char **argv) {
 
   e.SetEvents(BaseFileEvent::READ | BaseFileEvent::ERROR);
 
-  fd = BindTo("0.0.0.0", 11111);
+  fd = BindTo("0.0.0.0", 11112);
   if (fd == -1) {
     printf("binding address %s", strerror(errno));
     return -1;
@@ -118,6 +125,16 @@ int main(int argc, char **argv) {
   Signal s;
   s.SetEvents(BaseSignalEvent::INT);
   el.AddEvent(&s);
+
+  Periodic p;
+  timeval tv2;
+  tv2.tv_sec = 0;
+  tv2.tv_usec = 500 * 1000;
+  p.SetInterval(tv2);
+
+  el.AddEvent(&p);
+
+  p.Start();
 
   el.StartLoop();
 

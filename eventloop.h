@@ -27,7 +27,7 @@ class BaseEvent {
 
  public:
   virtual void SetEvents(uint32_t events) { events_ = events; }
-  virtual uint32_t GetEvents() const { return events_; }
+  virtual uint32_t Events() const { return events_; }
 
  protected:
   uint32_t events_;
@@ -46,7 +46,7 @@ class BaseFileEvent : public BaseEvent {
 
  public:
   void SetFile(int fd) { file = fd; }
-  int GetFile() const { return file; }
+  int File() const { return file; }
 
  public:
   virtual void OnEvents(uint32_t events) = 0;
@@ -109,20 +109,23 @@ class BaseTimerEvent : public BaseEvent {
 
  public:
   void SetTime(timeval tv) { time_ = tv; }
-  timeval GetTime() const { return time_; }
+  timeval Time() const { return time_; }
 
- private:
+ protected:
   timeval time_;
 };
 
 class PeriodicTimerEvent : public BaseTimerEvent {
   friend class EventLoop;
  public:
-  explicit PeriodicTimerEvent(uint32_t events = BaseEvent::NONE) :BaseTimerEvent(events) {};
+  explicit PeriodicTimerEvent() :BaseTimerEvent(BaseEvent::NONE), el_(NULL) {};
+  explicit PeriodicTimerEvent(timeval inter) :BaseTimerEvent(BaseEvent::NONE), interval_(inter), el_(NULL) {};
   virtual ~PeriodicTimerEvent() {};
 
+  void SetInterval(timeval inter) { interval_ = inter; }
   void Start();
   void Stop();
+
   virtual void OnTimer() = 0;
 
  private:
@@ -130,6 +133,8 @@ class PeriodicTimerEvent : public BaseTimerEvent {
 
  private:
   timeval interval_;
+
+  EventLoop *el_;
 };
 
 class EventLoop {
@@ -138,7 +143,7 @@ class EventLoop {
   ~EventLoop();
 
  public:
-  //add delete & update event objects
+  // add delete & update event objects
   int AddEvent(BaseFileEvent *e);
   int DeleteEvent(BaseFileEvent *e);
   int UpdateEvent(BaseFileEvent *e);
@@ -152,18 +157,19 @@ class EventLoop {
   int UpdateEvent(BaseSignalEvent *e);
 
   int AddEvent(BufferFileEvent *e);
+  int AddEvent(PeriodicTimerEvent *e);
 
-  //do epoll_waite and collect events
+  // do epoll_waite and collect events
   int ProcessEvents(int timeout);
 
-  //event loop control
+  // event loop control
   void StartLoop();
   void StopLoop();
 
   timeval Now() const { return now_; }
 
  private:
-  int GetFileEvents(int timeout);
+  int CollectFileEvents(int timeout);
   int DoTimeout();
 
  private:

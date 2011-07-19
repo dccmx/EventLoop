@@ -20,7 +20,7 @@ using std::map;
 
 namespace eventloop {
 
-//singleton class that manages all signals
+// singleton class that manages all signals
 class SignalManager {
  public:
   int AddEvent(BaseSignalEvent *e);
@@ -57,8 +57,8 @@ class TimerManager {
   class Compare {
    public:
     bool operator()(const BaseTimerEvent *e1, const BaseTimerEvent *e2) {
-      timeval t1 = e1->GetTime();
-      timeval t2 = e2->GetTime();
+      timeval t1 = e1->Time();
+      timeval t2 = e2->Time();
       return (t1.tv_sec < t2.tv_sec) || (t1.tv_sec == t2.tv_sec && t1.tv_usec < t2.tv_usec);
     }
   };
@@ -82,7 +82,7 @@ int SetNonblocking(int fd) {
 
 int ConnectTo(const char *host, short port, bool async) {
   int fd;
-  struct sockaddr_in addr;
+  sockaddr_in addr;
 
   if (host == NULL) return -1;
 
@@ -99,7 +99,7 @@ int ConnectTo(const char *host, short port, bool async) {
 
   if (async) SetNonblocking(fd);
 
-  if (connect(fd, (struct sockaddr*)&addr, sizeof(struct sockaddr_in)) == -1) {
+  if (connect(fd, (sockaddr*)&addr, sizeof(sockaddr_in)) == -1) {
     if (errno != EINPROGRESS) {
       close(fd);
       return -1;
@@ -111,7 +111,7 @@ int ConnectTo(const char *host, short port, bool async) {
 
 int BindTo(const char *host, short port) {
   int fd, on = 1;
-  struct sockaddr_in addr;
+  sockaddr_in addr;
 
   if (host == NULL) return -1;
 
@@ -121,7 +121,7 @@ int BindTo(const char *host, short port) {
 
   setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(int));
 
-  memset(&addr, 0, sizeof(struct sockaddr_in));
+  memset(&addr, 0, sizeof(sockaddr_in));
   addr.sin_family = PF_INET;
   addr.sin_port = htons(port);
   if (host[0] == '\0' || strcmp(host, "localhost") == 0) {
@@ -132,18 +132,29 @@ int BindTo(const char *host, short port) {
     if (inet_aton(host, &addr.sin_addr) == 0) return -1;
   }
 
-  if (bind(fd, (struct sockaddr*)&addr, sizeof(struct sockaddr_in)) == -1 || listen(fd, 10) == -1) {
+  if (bind(fd, (sockaddr*)&addr, sizeof(sockaddr_in)) == -1 || listen(fd, 10) == -1) {
     return -1;
   }
 
   return fd;
 }
 
-int timediff(timeval tv1, timeval tv2) {
+// return time diff in ms
+static int TimeDiff(timeval tv1, timeval tv2) {
   return (tv1.tv_sec - tv2.tv_sec) * 1000 + (tv1.tv_usec - tv2.tv_usec) / 1000;
 }
 
-//TimerManager implementation
+// add time in ms to tv
+static timeval TimeAdd(timeval tv1, timeval tv2) {
+  timeval t = tv1;
+  t.tv_sec += tv2.tv_sec;
+  t.tv_usec += tv2.tv_usec;
+  t.tv_sec += t.tv_usec / 1000000;
+  t.tv_usec %= 1000000;
+  return t;
+}
+
+// TimerManager implementation
 int TimerManager::AddEvent(BaseTimerEvent *e) {
   return !timers_.insert(e).second;
 }
@@ -157,18 +168,24 @@ int TimerManager::UpdateEvent(BaseTimerEvent *e) {
   return !timers_.insert(e).second;
 }
 
-//PeriodicTimerEvent implementation
+// PeriodicTimerEvent implementation
 void PeriodicTimerEvent::OnEvents(uint32_t events) {
   OnTimer();
+  time_ = TimeAdd(el_->Now(), interval_);
+  el_->UpdateEvent(this);
 }
 
 void PeriodicTimerEvent::Start() {
+  if (!el_) return;
+  el_->AddEvent(this);
 }
 
 void PeriodicTimerEvent::Stop() {
+  if (!el_) return;
+  el_->DeleteEvent(this);
 }
 
-//EventLoop implementation
+// EventLoop implementation
 EventLoop::EventLoop() {
   epfd_ = epoll_create(256);
   timermanager_ = new TimerManager();
@@ -180,7 +197,7 @@ EventLoop::~EventLoop() {
   delete static_cast<TimerManager *>(timermanager_);
 }
 
-int EventLoop::GetFileEvents(int timeout) {
+int EventLoop::CollectFileEvents(int timeout) {
   return epoll_wait(epfd_, evs_, 256, timeout);
 }
 
@@ -189,8 +206,8 @@ int EventLoop::DoTimeout() {
   TimerManager::TimerSet& timers = static_cast<TimerManager *>(timermanager_)->timers_;
   TimerManager::TimerSet::iterator ite = timers.begin();
   while (ite != timers.end()) {
-    timeval tv = (*ite)->GetTime();
-    if (timediff(now_, tv) < 0) break;
+    timeval tv = (*ite)->Time();
+    if (TimeDiff(now_, tv) < 0) break;
     n++;
     BaseTimerEvent *e = *ite;
     timers.erase(ite);
@@ -203,7 +220,7 @@ int EventLoop::DoTimeout() {
 int EventLoop::ProcessEvents(int timeout) {
   int i, nt, n;
 
-  n = GetFileEvents(timeout);
+  n = CollectFileEvents(timeout);
 
   gettimeofday(&now_, NULL);
 
@@ -233,8 +250,8 @@ void EventLoop::StartLoop() {
 
     if (static_cast<TimerManager *>(timermanager_)->timers_.size() > 0) {
       TimerManager::TimerSet::iterator ite = static_cast<TimerManager *>(timermanager_)->timers_.begin();
-      timeval tv = (*ite)->GetTime();
-      int t = timediff(tv, now_);
+      timeval tv = (*ite)->Time();
+      int t = TimeDiff(tv, now_);
       if (t > 0 && timeout > t) timeout = t;
     }
 
@@ -243,7 +260,7 @@ void EventLoop::StartLoop() {
 }
 
 int EventLoop::AddEvent(BaseFileEvent *e) {
-  struct epoll_event ev = {0, {0}};
+  epoll_event ev = {0, {0}};
   uint32_t events = e->events_;
 
   ev.events = 0;
@@ -259,7 +276,7 @@ int EventLoop::AddEvent(BaseFileEvent *e) {
 }
 
 int EventLoop::UpdateEvent(BaseFileEvent *e) {
-  struct epoll_event ev = {0, {0}};
+  epoll_event ev = {0, {0}};
   uint32_t events = e->events_;
 
   ev.events = 0;
@@ -273,7 +290,7 @@ int EventLoop::UpdateEvent(BaseFileEvent *e) {
 }
 
 int EventLoop::DeleteEvent(BaseFileEvent *e) {
-  struct epoll_event ev; //kernel before 2.6.9 requires
+  epoll_event ev; // kernel before 2.6.9 requires
   return epoll_ctl(epfd_, EPOLL_CTL_DEL, e->file, &ev);
 }
 
@@ -303,6 +320,12 @@ int EventLoop::UpdateEvent(BaseSignalEvent *e) {
 
 int EventLoop::AddEvent(BufferFileEvent *e) {
   AddEvent(dynamic_cast<BaseFileEvent *>(e));
+  e->el_ = this;
+  return 0;
+}
+
+int EventLoop::AddEvent(PeriodicTimerEvent *e) {
+  AddEvent(dynamic_cast<BaseTimerEvent *>(e));
   e->el_ = this;
   return 0;
 }
@@ -371,7 +394,7 @@ int SignalManager::UpdateEvent(BaseSignalEvent *e) {
   return 0;
 }
 
-//BufferFileEvent implementation
+// BufferFileEvent implementation
 void BufferFileEvent::OnEvents(uint32_t events) {
   if (events & BaseFileEvent::READ) {
     int len = read(file, recvbuf_ + recvd_, torecv_ - recvd_);
