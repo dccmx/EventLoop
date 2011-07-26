@@ -177,11 +177,13 @@ void PeriodicTimerEvent::OnEvents(uint32_t events) {
 
 void PeriodicTimerEvent::Start() {
   if (!el_) return;
+  running_ = true;
   el_->AddEvent(this);
 }
 
 void PeriodicTimerEvent::Stop() {
   if (!el_) return;
+  running_ = false;
   el_->DeleteEvent(this);
 }
 

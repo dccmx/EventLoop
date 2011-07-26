@@ -123,8 +123,11 @@ class PeriodicTimerEvent : public BaseTimerEvent {
   virtual ~PeriodicTimerEvent() {};
 
   void SetInterval(timeval inter) { interval_ = inter; }
+
   void Start();
   void Stop();
+
+  bool IsRunning() { return running_; }
 
   virtual void OnTimer() = 0;
 
@@ -133,6 +136,7 @@ class PeriodicTimerEvent : public BaseTimerEvent {
 
  private:
   timeval interval_;
+  bool running_;
 
   EventLoop *el_;
 };

@@ -72,6 +72,13 @@ class AcceptEvent: public BaseFileEvent {
   }
 };
 
+class Periodic : public PeriodicTimerEvent {
+ public:
+  void OnTimer() {
+    printf("Periodic timer\n");
+  }
+};
+
 class Timer : public BaseTimerEvent {
  public:
   void OnEvents(uint32_t events) {
@@ -80,14 +87,12 @@ class Timer : public BaseTimerEvent {
     tv.tv_sec += 1;
     SetTime(tv);
     el.UpdateEvent(this);
+    if (p->IsRunning()) p->Stop();
+    else p->Start();
   }
-};
 
-class Periodic : public PeriodicTimerEvent {
  public:
-  void OnTimer() {
-    printf("Periodic timer\n");
-  }
+  Periodic *p;
 };
 
 class Signal : public BaseSignalEvent {
@@ -114,7 +119,18 @@ int main(int argc, char **argv) {
 
   el.AddEvent(&e);
 
+  Periodic p;
+  timeval tv2;
+  tv2.tv_sec = 0;
+  tv2.tv_usec = 500 * 1000;
+  p.SetInterval(tv2);
+
+  el.AddEvent(&p);
+
+  p.Start();
+
   Timer t;
+  t.p = &p;
   timeval tv;
   gettimeofday(&tv, NULL);
   tv.tv_sec += 3;
@@ -125,16 +141,6 @@ int main(int argc, char **argv) {
   Signal s;
   s.SetEvents(BaseSignalEvent::INT);
   el.AddEvent(&s);
-
-  Periodic p;
-  timeval tv2;
-  tv2.tv_sec = 0;
-  tv2.tv_usec = 500 * 1000;
-  p.SetInterval(tv2);
-
-  el.AddEvent(&p);
-
-  p.Start();
 
   el.StartLoop();
 
