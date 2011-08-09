@@ -87,6 +87,7 @@ class Timer : public BaseTimerEvent {
     tv.tv_sec += 1;
     SetTime(tv);
     el.UpdateEvent(this);
+    if (!p) return;
     if (p->IsRunning()) p->Stop();
     else p->Start();
   }
@@ -120,6 +121,16 @@ int main(int argc, char **argv) {
   el.AddEvent(&e);
 
   Periodic p;
+  Timer t;
+  t.p = &p;
+
+  timeval tv;
+  gettimeofday(&tv, NULL);
+  tv.tv_sec += 3;
+  t.SetTime(tv);
+
+  el.AddEvent(&t);
+
   timeval tv2;
   tv2.tv_sec = 0;
   tv2.tv_usec = 500 * 1000;
@@ -129,14 +140,6 @@ int main(int argc, char **argv) {
 
   p.Start();
 
-  Timer t;
-  t.p = &p;
-  timeval tv;
-  gettimeofday(&tv, NULL);
-  tv.tv_sec += 3;
-  t.SetTime(tv);
-
-  el.AddEvent(&t);
 
   Signal s;
   s.SetEvents(BaseSignalEvent::INT);

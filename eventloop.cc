@@ -178,6 +178,9 @@ void PeriodicTimerEvent::OnEvents(uint32_t events) {
 void PeriodicTimerEvent::Start() {
   if (!el_) return;
   running_ = true;
+  timeval tv;
+  gettimeofday(&tv, NULL);
+  SetTime(tv);
   el_->AddEvent(this);
 }
 
